@@ -1,8 +1,12 @@
 # Perl hack for clausifying with Flotter in the TPTP way.
-# You will need SPASS 2.1, my patch to it, and
-# the ReformatTPTP tool from Geoff Sutcliffe's TPTPWorld
+# You will need SPASS 2.1 (http://spass.mpi-sb.mpg.de/download/sources/spass21.tgz),
+# my patch (spass21patch) to it, and
+# the ReformatTPTP tool from Geoff Sutcliffe's
+# TPTPWorld (http://www.cs.miami.edu/~tptp/TPTPWorld.tgz).
+# After patching (patch -p0 < spass21patch) and compiling SPASS,
+# you will need the SPASS program and the dfg2tptp tool.
 
-# run like:
+# SYNOPSIS:
 # perl -F FlotterOnTPTP problem.fof >problem.cnf
 
 local $/;
