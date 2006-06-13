@@ -1,0 +1,528 @@
+diff -c src/dfg2tptp.c new/dfg2tptp.c
+*** src/dfg2tptp.c	2003-02-26 09:21:16.000000000 -0500
+--- new/dfg2tptp.c	2006-06-13 17:52:00.000000000 -0400
+***************
+*** 26,35 ****
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                        * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+--- 26,35 ----
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                        * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+***************
+*** 178,184 ****
+  
+  int main(int argc, const char* argv[])
+  {
+!   LIST       Clauses,Axioms,Conjectures,Sorts,Scan, UserPrecedence;
+    FILE       *Output,*Input;
+    int        i;
+    CLAUSE     Clause;
+--- 178,184 ----
+  
+  int main(int argc, const char* argv[])
+  {
+!   LIST       Clauses,Axioms,Conjectures,Sorts,Scan,pair, UserPrecedence;
+    FILE       *Output,*Input;
+    int        i;
+    CLAUSE     Clause;
+***************
+*** 198,207 ****
+    fol_Init(TRUE, Precedence);
+    clause_Init();
+  
+!   if (argc < 3) {
+      fputs("\n\t          dfg2tptp Version ", stdout);
+      fputs(DFG2TPTP__VERSION, stdout);
+      puts("\n\t       Usage: dfg2tptp <input-file> <output-file>\n");
+      return EXIT_FAILURE;
+    }
+  
+--- 198,208 ----
+    fol_Init(TRUE, Precedence);
+    clause_Init();
+  
+!   if ((argc < 3) && (argc > 1)) {
+      fputs("\n\t          dfg2tptp Version ", stdout);
+      fputs(DFG2TPTP__VERSION, stdout);
+      puts("\n\t       Usage: dfg2tptp <input-file> <output-file>\n");
++     puts("\n\t       or: dfg2tptp <input-file \n");
+      return EXIT_FAILURE;
+    }
+  
+***************
+*** 210,230 ****
+    Sorts       = list_Nil();
+    UserPrecedence = list_Nil();
+  
+!   Filename = *++argv;
+!   Input    = misc_OpenFile(Filename, "r");
+!   Clauses  = dfg_DFGParser(Input, FlagStore, Precedence, &Axioms, &Conjectures,
+! 			   &Sorts, &UserPrecedence);
+!   misc_CloseFile(Input,Filename);
+  
+    Axioms = list_Nconc(Axioms, Sorts);
+!   dfg_StripLabelsFromList(Axioms);
+!   dfg_StripLabelsFromList(Conjectures);
+  
+    symbol_LowerSignature();
+  
+!   Outname = *++argv;
+!   Output  = misc_OpenFile(Outname, "w");
+! 
+    if (!list_Empty(Axioms) || !list_Empty(Conjectures)) {
+      fprintf(Output,"%%--------------------------------------------------------------------------");
+      fprintf(Output,"\n%% File     : No information");
+--- 211,241 ----
+    Sorts       = list_Nil();
+    UserPrecedence = list_Nil();
+  
+!   if (argc == 1) {
+!     Input       = stdin;
+!   }
+!   else {    
+!     Filename = *++argv;
+!     Input    = misc_OpenFile(Filename, "r");
+!   }
+!   Clauses  = dfg_DFGParser1(Input, FlagStore, Precedence, &Axioms, 
+! 			    &Conjectures, &Sorts, &UserPrecedence);
+!   if (argc != 1) misc_CloseFile(Input,Filename);
+  
+    Axioms = list_Nconc(Axioms, Sorts);
+! /*    dfg_StripLabelsFromList(Axioms); */
+! /*    dfg_StripLabelsFromList(Conjectures); */
+  
+    symbol_LowerSignature();
+  
+!   if (argc == 1) {
+!     Output       = stdout;
+!   }
+!   else {    
+!     Outname = *++argv;
+!     Output  = misc_OpenFile(Outname, "w");
+!   }
+!   
+    if (!list_Empty(Axioms) || !list_Empty(Conjectures)) {
+      fprintf(Output,"%%--------------------------------------------------------------------------");
+      fprintf(Output,"\n%% File     : No information");
+***************
+*** 244,256 ****
+      fprintf(Output,"\n%%--------------------------------------------------------------------------");
+      i=1;
+      for (Scan = Axioms;!list_Empty(Scan);Scan=list_Cdr(Scan)) {
+!       fprintf(Output,"\ninput_formula(ax%d,axiom,(\n\t",i++);
+        TPTPOutput(Output,list_Car(Scan));
+        fputs(")).", Output);
+      }
+      i=1;
+      for (Scan = Conjectures;!list_Empty(Scan);Scan=list_Cdr(Scan)) {
+!       fprintf(Output,"\ninput_formula(co%d,conjecture,(\n\t",i++);
+        TPTPOutput(Output,list_Car(Scan));
+        fputs(")).\n", Output);
+      }
+--- 255,287 ----
+      fprintf(Output,"\n%%--------------------------------------------------------------------------");
+      i=1;
+      for (Scan = Axioms;!list_Empty(Scan);Scan=list_Cdr(Scan)) {
+!       pair = list_Car(Scan);  /* (label, term) */
+!       fputs("\ninput_formula(", Output);
+!       if (list_PairFirst(pair) != NULL) {
+!  	 fputs(list_PairFirst(pair), Output);
+!     	 string_StringFree(list_PairFirst(pair));  /* Free the label */
+!       }
+!       else
+! 	 fprintf(Output,"ax%d",i++);
+!       fputs(",axiom,(\n\t", Output);
+!       list_Rplaca(Scan, list_PairSecond(pair));
+!       list_PairFree(pair);
+        TPTPOutput(Output,list_Car(Scan));
+        fputs(")).", Output);
+      }
+      i=1;
+      for (Scan = Conjectures;!list_Empty(Scan);Scan=list_Cdr(Scan)) {
+!       pair = list_Car(Scan);  /* (label, term) */
+!       fputs("\ninput_formula(", Output);
+!       if (list_PairFirst(pair) != NULL) {
+!  	 fputs(list_PairFirst(pair), Output);
+!     	 string_StringFree(list_PairFirst(pair));  /* Free the label */
+!       }
+!       else
+! 	 fprintf(Output,"co%d",i++);
+!       fputs(",conjecture,(\n\t", Output);
+!       list_Rplaca(Scan, list_PairSecond(pair));
+!       list_PairFree(pair);
+        TPTPOutput(Output,list_Car(Scan));
+        fputs(")).\n", Output);
+      }
+***************
+*** 274,282 ****
+      fprintf(Output, DFG2TPTP__VERSION);
+      fprintf(Output,"\n%%--------------------------------------------------------------------------");
+      for (Scan = Clauses;!list_Empty(Scan);Scan=list_Cdr(Scan)) {
+!       Clause = (CLAUSE)list_Car(Scan);
+!       fprintf(Output,"\ninput_clause(clause%d,%s,\n\t",clause_Number(Clause),
+! 	      (clause_GetFlag(Clause,CONCLAUSE) ? "conjecture" : "axiom"));
+        putc('[', Output);
+        for (i=clause_FirstLitIndex();i<clause_Length(Clause);i++) {
+  	if (i <= clause_LastAntecedentLitIndex(Clause))
+--- 305,323 ----
+      fprintf(Output, DFG2TPTP__VERSION);
+      fprintf(Output,"\n%%--------------------------------------------------------------------------");
+      for (Scan = Clauses;!list_Empty(Scan);Scan=list_Cdr(Scan)) {
+!       pair = list_Car(Scan);  /* (label, term) */
+!       Clause = (CLAUSE)list_PairSecond(pair);
+!       fputs("\ninput_clause(", Output);
+!       if (list_PairFirst(pair) != NULL) {
+!  	 fputs(list_PairFirst(pair), Output);
+!     	 string_StringFree(list_PairFirst(pair));  /* Free the label */
+!       }
+!       else
+! 	 fprintf(Output,"clause%d",clause_Number(Clause));
+!       fprintf(Output, ",%s,\n\t", (clause_GetFlag(Clause,CONCLAUSE) ? 
+! 				    "conjecture" : "axiom"));
+!       list_Rplaca(Scan, list_PairSecond(pair));
+!       list_PairFree(pair);
+        putc('[', Output);
+        for (i=clause_FirstLitIndex();i<clause_Length(Clause);i++) {
+  	if (i <= clause_LastAntecedentLitIndex(Clause))
+***************
+*** 292,298 ****
+      fprintf(Output,"%%--------------------------------------------------------------------------\n");
+    }
+  
+!   misc_CloseFile(Output,Outname);
+  
+    clause_DeleteClauseList(Clauses);
+    term_DeleteTermList(Axioms);
+--- 333,339 ----
+      fprintf(Output,"%%--------------------------------------------------------------------------\n");
+    }
+  
+!   if (argc !=1) misc_CloseFile(Output,Outname);
+  
+    clause_DeleteClauseList(Clauses);
+    term_DeleteTermList(Axioms);
+diff -c src/dfg.h new/dfg.h
+*** src/dfg.h	2003-02-26 09:21:06.000000000 -0500
+--- new/dfg.h	2006-06-13 19:10:42.000000000 -0400
+***************
+*** 26,35 ****
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                        * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+--- 26,35 ----
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                        * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+***************
+*** 56,62 ****
+  typedef enum { DFG_SATISFIABLE, DFG_UNSATISFIABLE, DFG_UNKNOWNSTATE } DFG_STATE;
+  
+  /* Parser functions */
+! LIST        dfg_DFGParser(FILE*, FLAGSTORE, PRECEDENCE, LIST*, LIST*, LIST*, LIST*);
+  LIST        dfg_ProofParser(FILE*, FLAGSTORE, PRECEDENCE);
+  LIST        dfg_TermParser(FILE*, FLAGSTORE, PRECEDENCE);
+  
+--- 56,65 ----
+  typedef enum { DFG_SATISFIABLE, DFG_UNSATISFIABLE, DFG_UNKNOWNSTATE } DFG_STATE;
+  
+  /* Parser functions */
+! LIST        dfg_DFGParser(FILE*, FLAGSTORE, PRECEDENCE, LIST*, LIST*,
+! 			  LIST*, LIST*);
+! LIST        dfg_DFGParser1(FILE*, FLAGSTORE, PRECEDENCE, LIST*, LIST*,
+! 			   LIST*, LIST*);
+  LIST        dfg_ProofParser(FILE*, FLAGSTORE, PRECEDENCE);
+  LIST        dfg_TermParser(FILE*, FLAGSTORE, PRECEDENCE);
+  
+diff -c src/dfgparser.c new/dfgparser.c
+*** src/dfgparser.c	2003-02-26 09:21:37.000000000 -0500
+--- new/dfgparser.c	2006-06-13 19:10:42.000000000 -0400
+***************
+*** 2973,2978 ****
+--- 2973,3075 ----
+  }
+  
+  
++ 
++ LIST dfg_DFGParser1(FILE* File, FLAGSTORE Flags, PRECEDENCE Precedence,
++ 		    LIST* Axioms, LIST* Conjectures, LIST* SortDecl,
++ 		    LIST* UserDefinedPrecedence)
++ /**************************************************************
++   INPUT:   The input file containing clauses or formulae in DFG syntax,
++            a flag store and a precedence used to memorize settings
++ 	   from the file.
++            Axioms, Conjectures, SortDecl and UserDefinedPrecedence are
++ 	   pointers to lists used as return values.
++   RETURNS: The list of tuples (label,clause) from File.
++   EFFECT:  Reads formulae and clauses from the input file.
++            The axioms, conjectures, sort declarations and user-defined
++ 	   precedences are appended to the respective lists, the lists
++ 	   are not deleted!
++ 	   All lists contain pairs
++ 	   (label, term), where <label> may be NULL, if no
++ 	   label was specified for that term.
++ 	   <UserDefinedPrecedence> contains symbols sorted by decreasing
++ 	   precedence. This list will only be changed, if the precedence
++ 	   is explicitly defined in the input file. This can be done
++ 	   by the 'set_precedence' flag in the SPASS settings list in
++ 	   the DFG input file.
++   CAUTION: The weight of the clauses is not correct and the literals
++            are not oriented!
++ ***************************************************************/
++ {
++   LIST  scan, tupel;
++   TERM  clauseTerm;
++   NAT   bottom;
++ 
++   dfg_Init(File, Flags, Precedence);  /* Initialize the parser and scanner */
++   bottom = stack_Bottom();
++   dfg_parse();          /* Invoke the parser */
++ #ifdef CHECK 
++   if (!stack_Empty(bottom)) {
++     misc_StartErrorReport();
++     misc_ErrorReport("\n In dfg_DFGParser1: Stack not empty!\n");
++     misc_FinishErrorReport();
++   }
++ #endif
++   dfg_SymCleanUp();
++ 
++   /* Remove clause labels and create clauses from the terms */
++   for (scan = dfg_AXCLAUSES; !list_Empty(scan); scan = list_Cdr(scan)) {
++     tupel = list_Car(scan);
++     clauseTerm = list_PairSecond(tupel);
++     list_PairRplacSecond(tupel, dfg_CreateClauseFromTerm(clauseTerm,TRUE, 
++ 							 Flags, Precedence));
++     if(list_PairSecond(tupel) == NULL) {
++        if (list_PairFirst(tupel) != NULL)        /* Label is defined */
++ 	  string_StringFree(list_PairFirst(tupel)); /* Delete the label */
++        list_Rplaca(scan, NULL);
++        list_PairFree(tupel);
++     }
++   }
++   /* Since dfg_CreateClauseFromTerm() returns NULL for trivial tautologies */
++   /* we now delete those NULL pointers from the clause list.               */
++   dfg_AXCLAUSES = list_PointerDeleteElement(dfg_AXCLAUSES, NULL);
++   for (scan = dfg_CONCLAUSES; !list_Empty(scan); scan = list_Cdr(scan)) {
++     tupel = list_Car(scan);
++     clauseTerm = list_PairSecond(tupel);
++     list_PairRplacSecond(tupel, dfg_CreateClauseFromTerm(clauseTerm,FALSE, 
++ 							 Flags, Precedence));
++     if(list_PairSecond(tupel) == NULL) {
++        if (list_PairFirst(tupel) != NULL)        /* Label is defined */
++ 	  string_StringFree(list_PairFirst(tupel)); /* Delete the label */
++        list_Rplaca(scan, NULL);
++        list_PairFree(tupel);
++     }
++   }
++   /* Since dfg_CreateClauseFromTerm() returns NULL for trivial tautologies */
++   /* we now delete those NULL pointers from the clause list.               */
++   dfg_CONCLAUSES = list_PointerDeleteElement(dfg_CONCLAUSES, NULL);
++ 
++   /* Delete the proof list */
++   dfg_DeleteProofList(dfg_PROOFLIST);
++ 
++   /* Delete the list_of_terms, since it'll be ignored */
++   term_DeleteTermList(dfg_TERMLIST);
++ 
++   scan = list_Nconc(dfg_AXCLAUSES, dfg_CONCLAUSES);
++ 
++   *Axioms      = list_Nconc(*Axioms, dfg_AXIOMLIST);
++   *Conjectures = list_Nconc(*Conjectures, dfg_CONJECLIST);
++   *SortDecl    = list_Nconc(*SortDecl, dfg_SORTDECLLIST);
++   list_NReverse(dfg_USERPRECEDENCE);
++   *UserDefinedPrecedence = list_Nconc(*UserDefinedPrecedence, dfg_USERPRECEDENCE);
++ 
++   return scan;
++ }
++ 
++ 
++ 
++ 
++ 
++ 
+  LIST dfg_ProofParser(FILE* File, FLAGSTORE Flags, PRECEDENCE Precedence)
+  /**************************************************************
+    INPUT:   The input file containing clauses in DFG syntax,
+diff -c src/foldfg.c new/foldfg.c
+*** src/foldfg.c	2003-02-26 09:21:05.000000000 -0500
+--- new/foldfg.c	2006-06-13 19:10:42.000000000 -0400
+***************
+*** 26,35 ****
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                        * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+--- 26,35 ----
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                        * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+***************
+*** 699,706 ****
+    SYMBOL symbol;
+    LIST   functions, predicates;
+  
+!   functions  = symbol_GetAllFunctions();
+!   predicates = fol_GetNonFOLPredicates();
+  
+    /* First print the function symbols */
+    if (!list_Empty(functions)) {
+--- 699,706 ----
+    SYMBOL symbol;
+    LIST   functions, predicates;
+  
+!   functions  = list_NReverse(symbol_GetAllFunctions());
+!   predicates = list_NReverse(fol_GetNonFOLPredicates());
+  
+    /* First print the function symbols */
+    if (!list_Empty(functions)) {
+diff -c src/top.c new/top.c
+*** src/top.c	2003-02-26 09:21:14.000000000 -0500
+--- new/top.c	2006-06-13 19:10:42.000000000 -0400
+***************
+*** 26,35 ****
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                       * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+--- 26,35 ----
+  /* *  Place, Suite 330, Boston, MA  02111-1307  USA         * */
+  /* *                                                        * */
+  /* *                                                        * */
+! /* $Revision: 1.1 $                                       * */
+  /* $State: Exp $                                            * */
+! /* $Date: 2006-06-13 23:34:16 $                             * */
+! /* $Author: urban $                                       * */
+  /* *                                                        * */
+  /* *             Contact:                                   * */
+  /* *             Christoph Weidenbach                       * */
+***************
+*** 1097,1103 ****
+  }
+  
+  
+! static void top_Flotter(int argc, const char* argv[], LIST InputClauses)
+  /**************************************************************
+    INPUT:  
+    RETURNS: Nothing.
+--- 1097,1104 ----
+  }
+  
+  
+! static void top_Flotter(int argc, const char* argv[], LIST
+! 			InputClauses, HASH ClauseToTermLabellist)
+  /**************************************************************
+    INPUT:  
+    RETURNS: Nothing.
+***************
+*** 1109,1114 ****
+--- 1110,1116 ----
+    const char *creator = "\n\tCNF generated by FLOTTER " misc_VERSION " *}";
+    int  size;
+    int  creator_size;
++   LIST Scan;
+  
+    if (argc < opts_Indicator()+2)
+      Output = stdout;
+***************
+*** 1135,1140 ****
+--- 1137,1171 ----
+  
+    if (Output != stdout)
+      misc_CloseFile(Output,argv[opts_Indicator()+1]);
++ 
++ 
++   /* Print clause to formula mapping */
++ 
++   if (ClauseToTermLabellist) {
++ 
++      if (argc < opts_Indicator()+3)
++ 	{ Output = stdout;  fputs("\n", Output); }
++      else
++ 	Output = misc_OpenFile(argv[opts_Indicator()+2],"w");
++ 
++      for (Scan = InputClauses; !list_Empty(Scan); Scan = list_Cdr(Scan)) {
++ 	LIST L,Scan1;
++ 	L = hsh_Get(ClauseToTermLabellist, list_Car(Scan));
++ 	fprintf(Output, "%d:", clause_Number(list_Car(Scan)));
++ 	for (Scan1 = L; !list_Empty(Scan1); Scan1 = list_Cdr(Scan1)) {
++ /*  	   if (!(strncmp((char*) list_Car(Scan1), "_SORT_", 6) == 0))
++  */
++ 	   if (Scan1 != L) 
++ 	      fputc(',', Output);
++ 	   fprintf(Output, " %s", (char*) list_Car(Scan1));
++ 	}
++ 	fputc('\n', Output);
++      }
++ 
++      if (Output != stdout)
++ 	misc_CloseFile(Output,argv[opts_Indicator()+2]);
++   }
++ 
+    memory_Free(description, sizeof(char)*size);
+  }
+  
+***************
+*** 1380,1386 ****
+    clock_StopPassedTime(clock_CNF);
+  
+    if (top_CalledFlotter(argv[0]) || flag_GetFlagValue(Flags, flag_FLOTTER)) {
+!     top_Flotter(argc,argv,InputClauses);
+      flag_SetFlagValue(Flags, flag_TIMELIMIT,   0);       /* Exit No Output */
+      flag_SetFlagValue(Flags, flag_INTERACTIVE, flag_INTERACTIVEOFF);
+      flag_SetFlagValue(Flags, flag_PPROBLEM,    flag_PPROBLEMOFF);
+--- 1411,1417 ----
+    clock_StopPassedTime(clock_CNF);
+  
+    if (top_CalledFlotter(argv[0]) || flag_GetFlagValue(Flags, flag_FLOTTER)) {
+!     top_Flotter(argc,argv,InputClauses,ClauseToTermLabellist);
+      flag_SetFlagValue(Flags, flag_TIMELIMIT,   0);       /* Exit No Output */
+      flag_SetFlagValue(Flags, flag_INTERACTIVE, flag_INTERACTIVEOFF);
+      flag_SetFlagValue(Flags, flag_PPROBLEM,    flag_PPROBLEMOFF);
