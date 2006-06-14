@@ -11,9 +11,6 @@
 
 local $/;
 
-# temp file for ReformatTPTP
-$tmpfile = "mmmfoo1";
-
 # export to dfg and run patched SPASS producing the SPASS cnf and clause2fla table
 
 $_ = `./ReformatTPTP -f dfg $ARGV[0] |./SPASS -Flotter  -DocProof -Stdin`;
@@ -30,7 +27,7 @@ s/\),(\d+)\)\./),my_secret_cnf\1)./g;
 # replace conjecture by negated_conjecture, run through patched dfg2tptp
 # and put to new tptp, parse it all to $cnf1
 
-$cnf1=`echo "$_"|./dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g'> $tmpfile; ./ReformatTPTP $tmpfile`;
+$cnf1=`echo "$_"|./dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | ./ReformatTPTP --`;
 
 # parse the clause2fla table to %h
 
@@ -42,5 +39,3 @@ $_=$cnf1;
 s/(\bmy_secret_cnf(\d+)\b)([^.]+)\)\./c\2\3,inference(cnf_conversion,[flotter],[$h{$1}]))./g;
 print $_;
 
-# clenup the tempfile
-`rm $tmpfile`;
