@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 # Perl hack for clausifying with Flotter in the TPTP way.
 # You will need SPASS 2.1 (http://spass.mpi-sb.mpg.de/download/sources/spass21.tgz),
 # my patch (spass21patch) to it, and
@@ -7,7 +8,10 @@
 # you will need the SPASS program and the dfg2tptp tool.
 
 # SYNOPSIS:
-# perl -F FlotterOnTPTP problem.fof >problem.cnf
+# ./FlotterOnTPTP problem.fof >problem.cnf
+
+use FileHandle;
+use IPC::Open2;
 
 local $/;
 
@@ -27,7 +31,12 @@ s/\),(\d+)\)\./),my_secret_cnf\1)./g;
 # replace conjecture by negated_conjecture, run through patched dfg2tptp
 # and put to new tptp, parse it all to $cnf1
 
-$cnf1=`echo "$_"|./dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | ./ReformatTPTP --`;
+$pid = open2(*Reader, *Writer, "./dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | ./ReformatTPTP -- " );
+
+print Writer "$_\n";
+$cnf1= <Reader>;
+
+# $cnf1=`echo "$_"|./dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | ./ReformatTPTP --`;
 
 # parse the clause2fla table to %h
 
