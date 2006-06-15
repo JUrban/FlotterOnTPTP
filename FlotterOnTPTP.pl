@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# $Revision: 1.6 $
+# $Revision: 1.7 $
 #
 # License:     GPL (GNU GENERAL PUBLIC LICENSE)
 #
@@ -67,6 +67,6 @@ $cnf1= <Reader>;
 # replace the secret clause names with "c", and add the cnf_conversion inference slot
 
 $_=$cnf1;
-s/(\bmy_secret_cnf(\d+)\b)([^.]+)\)\./c\2\3,inference(cnf_conversion,[flotter],[$h{$1}]))./g;
+s/(\bmy_secret_cnf(\d+)\b)([^.]+)\)\./c\2\3,inference(cnf_conversion,[system(flotter)],[$h{$1}]))./g;
 print $_;
 
