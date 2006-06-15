@@ -1,5 +1,11 @@
 #!/usr/bin/perl
 
+# $Revision: 1.6 $
+#
+# License:     GPL (GNU GENERAL PUBLIC LICENSE)
+#
+# Authors: Josef Urban, Geoff Sutcliffe
+#
 # Perl hack for clausifying with Flotter in the TPTP way.
 # You will need SPASS 2.1 (http://spass.mpi-sb.mpg.de/download/sources/spass21.tgz),
 # my patch (spass21patch) to it, and
@@ -20,12 +26,27 @@ local $/;
 
 # export to dfg and run patched SPASS producing the SPASS cnf and clause2fla table
 
-$_ = `$FlotterOnTPTPHome/tptp4X -x -f dfg $ARGV[0] | $FlotterOnTPTPHome/SPASS -Flotter  -DocProof -Stdin`;
+$_ = `$FlotterOnTPTPHome/tptp4X -x -f dfg $ARGV[0]`;
+if ($_ =~ "ERROR:") {
+    print("ERROR: Cannot translate to DFG\n");
+    die("\n");
+}
+
+open2(*Reader, *Writer, "$FlotterOnTPTPHome/SPASS -Flotter  -DocProof -Stdin");
+print Writer $_;
+$_ = <Reader>;
 
 # parse the SPASS cnf and the clause2fla table
 
-m/(begin_problem(.|\n)*end_problem\.\n)(.|\n)*FLOTTER needed.*\n.*\n((.|\n)*)/;
-$_=$1; $t=$4;
+if(m/(begin_problem(.|\n)*end_problem\.\n)(.|\n)*FLOTTER needed.*\n.*\n((.|\n)*)/) {
+  $_=$1; $t=$4;
+}
+else {
+  print("ERROR: Cannot translate to DFG\n");
+  die("\n");
+}
+
+
 
 # replace clause numbers with secret names - otherwise my dfg2tptp does not keep the clause name
 
@@ -38,8 +59,6 @@ $pid = open2(*Reader, *Writer, "$FlotterOnTPTPHome/dfg2tptp|sed -e 's/,conjectur
 
 print Writer "$_\n";
 $cnf1= <Reader>;
-
-# $cnf1=`echo "$_"|./dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | ./ReformatTPTP --`;
 
 # parse the clause2fla table to %h
 
