@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Revision: 1.8 $
+# $Revision: 1.9 $
 
 =head1 NAME
 
@@ -20,6 +20,7 @@ cat problem.fof | ./FlotterOnTPTP.pl | eprover -tAuto -xAuto --tstp-in
 # prepare input for Vampire, then run it (no pipes for Vampire AFAIK)
 
 FlotterOnTPTP.pl -f oldtptp problem.fof >problem.cnf
+
 vampire --mode casc -t 300 problem.cnf
 
  Options:
@@ -87,7 +88,7 @@ use Pod::Usage;
 use FileHandle;
 use IPC::Open2;
 
-my $FlotterOnTPTPHome = "~/FlotterOnTPTP/distro/FlotterOnTPTP";#"/home/graph/tptp/Systems/FlotterOnTPTP---1.3";
+my $FlotterOnTPTPHome = "~/FlotterOnTPTP";#"/home/graph/tptp/Systems/FlotterOnTPTP---1.3";
 my $Format = "tptp";
 my $Transform = "none";
 my $User = "human";
