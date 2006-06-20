@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Revision: 1.9 $
+# $Revision: 1.10 $
 
 =head1 NAME
 
@@ -15,7 +15,11 @@ FlotterOnTPTP.pl problem.fof >problem.cnf
 
 # read input from pipe, produce cnf format, and run E
 
-cat problem.fof | ./FlotterOnTPTP.pl | eprover -tAuto -xAuto --tstp-in
+cat problem.fof | ./FlotterOnTPTP.pl | eprover -s -tAuto -xAuto --tstp-in
+
+# run eproof directly:
+
+./FlotterOnTPTP.pl  -s eproof -t 4 problem.fof
 
 # prepare input for Vampire, then run it (no pipes for Vampire AFAIK)
 
@@ -23,10 +27,17 @@ FlotterOnTPTP.pl -f oldtptp problem.fof >problem.cnf
 
 vampire --mode casc -t 300 problem.cnf
 
+# run vampire directly
+
+./FlotterOnTPTP.pl -f oldtptp -s vampire -t 4 problem.fof
+
+
  Options:
    --format[=<arg>],   	    -f[<arg>]
    --transform[=<arg>],	    -t[<arg>]
    --user[=<arg>],	    -u[<arg>]
+   --system[=<arg>],	    -s[<arg>]
+   --timelimit[=<arg>],	    -T[<arg>]
    --help,                  -h
    --man
 
@@ -36,7 +47,7 @@ vampire --mode casc -t 300 problem.cnf
 
 =item B<<< --format[=<arg>], -f[<arg>] >>>
 
-Specify the output format. The default is the TPTP3 format.
+Specify the output format. The default is the TPTP3 format (tptp).
 Run B<tptp4x -h> for a list of supported formats.
 
 =item B<<< --transform[=<arg>], -t[<arg>] >>>
@@ -48,6 +59,17 @@ Run B<tptp4x -h> for a list of supported transformations.
 
 Specify the user type. The default is human (pretty printing).
 Run B<tptp4x -h> for a list of supported user types.
+
+=item B<<< --system[=<arg>], -s[<arg>] >>>
+
+Specify a system launched on the clausified output. The default is none.
+Currently supported are: vampire (run with --mode casc),
+eprover (run with -s -tAuto -xAuto --tstp-in), and
+eproof (run with -tAuto -xAuto --tstp-format).
+
+=item B<<< --timelimit[=<arg>], -T[<arg>] >>>
+
+Specify the time limit for a system run through -s. The default is 300.
 
 =item B<<< --help, -h >>>
 
@@ -87,17 +109,22 @@ use Getopt::Long;
 use Pod::Usage;
 use FileHandle;
 use IPC::Open2;
+use File::Temp qw/ :mktemp  /;
 
 my $FlotterOnTPTPHome = "~/FlotterOnTPTP";#"/home/graph/tptp/Systems/FlotterOnTPTP---1.3";
 my $Format = "tptp";
 my $Transform = "none";
 my $User = "human";
+my $System = "none";
+my $Timelimit = 300;
 
 Getopt::Long::Configure ("bundling","no_ignore_case");
 
 GetOptions('format|f=s'     	=> \$Format,
 	   'transform|t=s' 	=> \$Transform,
 	   'user|u=s'    	=> \$User,
+	   'system|s=s' 	=> \$System,
+	   'timelimit|T=i'    	=> \$Timelimit,
 	   'help|h'          	=> \$help,
 	   'man'             	=> \$man)
     or pod2usage(2);
@@ -137,14 +164,14 @@ $_ = <Reader2>;
 # parse the SPASS cnf and the clause2fla table
 
 if(m/(begin_problem(.|\n)*end_problem\.\n)(.|\n)*FLOTTER needed.*\n.*\n((.|\n)*)/) {
-  $_=$1; $t=$4;
+  $_=$1; $t= "\n" . $4;
 }
 else {
   print("ERROR: Cannot translate to DFG\n");
   die("\n");
 }
 
-# replace clause numbers with secret names - otherwise my dfg2tptp does not keep the clause name
+# replace clause numbers in the cnf with secret names - otherwise my dfg2tptp does not keep the clause name
 
 s/\),(\d+)\)\./),my_secret_cnf$1)./g;
 
@@ -155,16 +182,77 @@ my $pid = open2(*Reader, *Writer, "$FlotterOnTPTPHome/dfg2tptp|sed -e 's/,conjec
 
 print Writer "$_\n";
 close Writer;
-$cnf1= <Reader>;
+my $cnf1= <Reader>;
 
 # parse the clause2fla table to %h
-
-%h=(); while($t=~m/\n(\d+): *(.*)/g) {$h{"my_secret_cnf$1"}=$2;};
+# print $t;
+my %h=();
+while($t =~ m/\n(\d+): *(.*)/g) {$h{"my_secret_cnf$1"}=$2;};
 
 # replace the secret clause names with "c", and add the cnf_conversion inference slot
+$_ = $cnf1;
+# print $cnf1;
+if ($Format eq "tptp")
+{
+    s/(\bmy_secret_cnf(\d+)\b)([^.]+)\)\./c$2$3,inference(cnf_conversion,[system(flotter)],[$h{$1}]))./g;
+}
+my $cnf2= $_;
 
-$_=$cnf1;
-s/(\bmy_secret_cnf(\d+)\b)([^.]+)\)\./c$2$3,inference(cnf_conversion,[system(flotter)],[$h{$1}]))./g;
-print $_;
+SWITCH: for($System)
+    {
+	if(/^none$/)
+	{
+	    print $cnf2;
+	    last SWITCH;
+	}
+	if(/^eprover$/)
+	{
+	    open2(*EReader1, *EWriter1, 
+		  "$FlotterOnTPTPHome/eprover -s -tAuto -xAuto --tstp-in --cpu-limit=$Timelimit ");
+	    print EWriter1 $cnf2;
+	    close EWriter1;
+	    $_ = <EReader1>;
+	    print $_;
+	    last SWITCH;
+	};
+	if(/^eproof$/)
+	{
+	    open2(*EReader2, *EWriter2, 
+		  "$FlotterOnTPTPHome/eproof -t Auto -x Auto --tstp-format --cpu-limit=$Timelimit ");
+	    print EWriter2 $cnf2;
+	    close EWriter2;
+	    $_ = <EReader2>;
+
+	    # now forge the proof
+	    my $fofs = "";
+	    while(m/,file\(.<stdin>., c(\d+)\)\)\./g)
+	    {
+		$fofs = $fofs . ", " . $h{"my_secret_cnf$1"}
+	    }
+	    s/,file\(.<stdin>., c(\d+)\)\)\./,inference(cnf_conversion,[flotter],[$h{"my_secret_cnf$1"}]))./g;
+	    @fofs1= split(/, */, $fofs);
+	    foreach $key1 ( @fofs1 ) { if(!($key1 eq "")) {$sortedfofs{$key1} = (); }}
+	    @sfofs = keys %sortedfofs;
+	    $r1 = '\b(fof\((' . join('|', @sfofs) . ')\b[^.]*\)\.)';
+	    $regexp = qr/$r1/;
+	    $fof=`cat $ARGV[0]`;
+	    while($fof=~m/$regexp/g) { print "$1\n";}
+	    print $_;
+	    last SWITCH;
+	};
+	if(/^vampire$/)
+	{
+	    ###TODO: learn how to run vampire through pipe
+	    $vamp_in = mktemp("___vamptmp___XXXXX");
+	    open(VIN,">$vamp_in") or die "Cannot open file $vamp_in for writing";
+	    print VIN $cnf2;
+	    close(VIN);
+	    $_ = `$FlotterOnTPTPHome/vampire --mode casc -t $Timelimit $vamp_in`;
+	    print $_;
+	    `rm $vamp_in`;
+	    last SWITCH;
+	};
+	die "Unhandled system name: $System";
+    }
 
 __END__
