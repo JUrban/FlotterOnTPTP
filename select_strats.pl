@@ -6,6 +6,10 @@
 %% to get the 15 protocols with widest coverage, and see there statistics.
 %% Note: this is done greedily, the result set can be suboptimal.
 
+
+zip([],[],[]).
+zip([H|T],[H1|T1],[[H,H1]|T2]):- zip(T,T1,T2).
+
 %% get_added_value(+ProtocolsSoFar,+CurrentProtocol,-ProblemsAddedNr,-AddedProblems)
 get_added_value0(ProtocolNamesSoFar,CurrentProtocolName,ProblemsAddedNr,AddedProblems):-
 	maplist(protocol,[CurrentProtocolName|ProtocolNamesSoFar],[CurrentProtocolList|ProtocolListsSoFar]),
@@ -20,11 +24,15 @@ get_added_value(PLs,PL2,N,AddedProblems):-
 	length(AddedProblems,N).
 
 %% when PLs is flattened and sorted already and PL2 is list of problems
-get_added_value2(PLs,PL2,N,AddedProblems):-
-	findall(Problem,
- 		(member([Problem,_],PL2), not(member(Problem,PLs))),
- 		AddedProblems),
-	length(AddedProblems,N).
+%% this now also reports the time needed for solving the added problems
+get_added_value2(PLs,PL2,N,AddedTime,AddedProblems):-
+	findall([Problem,Time],
+ 		(member([Problem,Time],PL2), not(member(Problem,PLs))),
+ 		AddedPairs),
+	length(AddedPairs,N),
+	zip(AddedProblems,Times,AddedPairs),
+	sumlist(Times,AddedTime).
+
 
 
 % get_added_value([PL1|PLs],PL2,N):-
@@ -57,22 +65,24 @@ get_best_prots(N,ProtsSoFar,ProtsToDo,Result,CoveredSoFar,ResultCovered,AddedNrs
 	maplist(flatten,ProtListsSoFar,ProtListsSoFar1),
 	maplist(sublist(atom),ProtListsSoFar1,ProtListsSoFar2),
 	union_l(ProtListsSoFar2,[],ProtListsSoFar3),!,
-	findall([AddedNr,Prot,AddedProbs],
+	findall([AddedNr,NegTime,Prot,AddedProbs],
 		(
 		  member(Prot,ProtsToDo),
 		  protocol(Prot,ProbList),
-		  get_added_value2(ProtListsSoFar3,ProbList,AddedNr,AddedProbs)
+		  get_added_value2(ProtListsSoFar3,ProbList,AddedNr,AddedTime,AddedProbs),
+		  NegTime is 0 - AddedTime   %% negate, so the smallest is last after sorting
 		),
 		Res1),
 	sort(Res1,Res2),
-	last(Res2,[BestAdded,BestProt,BestAddedProbs]),
+	last(Res2,[BestAdded,BestNegTime,BestProt,BestAddedProbs]),
 	delete(ProtsToDo,BestProt,ProtsToDo1),
 	N1 is N - 1,
 	CoveredSoFar1 is CoveredSoFar + BestAdded,
 	protocol(BestProt,BestProtList),
-	length(BestProtList,BestSolved), !,
+	length(BestProtList,BestSolved),
+	BestTime is 0 - BestNegTime, !,
 	get_best_prots(N1,[BestProt|ProtsSoFar],ProtsToDo1,Result,CoveredSoFar1,ResultCovered,
-		       [BestAdded:BestSolved:BestAddedProbs|AddedNrsSoFar],AddedNrList).
+		       [BestAdded:BestTime:BestSolved:BestAddedProbs|AddedNrsSoFar],AddedNrList).
 	
 
 
