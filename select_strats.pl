@@ -37,6 +37,10 @@ get_allprot_names(AllNames):- findall(Prot,protocol(Prot,_),AllNames1), sort(All
 
 get_solved(Prots,Solved):- findall(Prob,(member(Prot,Prots),protocol(Prot,PList),member([Prob|_],PList)),Solved1), sort(Solved1,Solved).
 
+union_l([],SortedIn,SortedIn).
+union_l([H|T],SortedIn,Result):-
+	union(H,SortedIn,Tmp1),
+	union_l(T,Tmp1,Result).	
 
 get_best_protocols(Size,Protocols,CoveredNr,UncoveredNr,TotalNr,AddedNrList):-
 	get_allprot_names(AllNames),
@@ -50,9 +54,9 @@ get_best_prots(0,ProtsSoFar,_,ProtsSoFar,CoveredSoFar,CoveredSoFar,AddedNrsSoFar
 
 get_best_prots(N,ProtsSoFar,ProtsToDo,Result,CoveredSoFar,ResultCovered,AddedNrsSoFar,AddedNrList):-
 	maplist(protocol,ProtsSoFar,ProtListsSoFar),
-	flatten(ProtListsSoFar,ProtListsSoFar1),
-	sublist(atom,ProtListsSoFar1,ProtListsSoFar2),
-	sort(ProtListsSoFar2,ProtListsSoFar3),
+	maplist(flatten,ProtListsSoFar,ProtListsSoFar1),
+	maplist(sublist(atom),ProtListsSoFar1,ProtListsSoFar2),
+	union_l(ProtListsSoFar2,[],ProtListsSoFar3),!,
 	findall([AddedNr,Prot,AddedProbs],
 		(
 		  member(Prot,ProtsToDo),
