@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Revision: 1.10 $
+# $Revision: 1.11 $
 
 =head1 NAME
 
@@ -110,13 +110,18 @@ use Pod::Usage;
 use FileHandle;
 use IPC::Open2;
 use File::Temp qw/ :mktemp  /;
-
-my $FlotterOnTPTPHome = "~/FlotterOnTPTP";#"/home/graph/tptp/Systems/FlotterOnTPTP---1.3";
+#------------------------------------------------------------------------------
+my $FlotterOnTPTPHome = "/home/graph/tptp/Systems/FlotterOnTPTP---1.3";
 my $Format = "tptp";
 my $Transform = "none";
 my $User = "human";
 my $System = "none";
 my $Timelimit = 300;
+my $pid;
+
+$SIG{'QUIT'} = 'QUITHandler';
+$SIG{'XCPU'} = 'QUITHandler';
+$SIG{'ALRM'} = 'ALRMHandler';
 
 Getopt::Long::Configure ("bundling","no_ignore_case");
 
@@ -178,7 +183,7 @@ s/\),(\d+)\)\./),my_secret_cnf$1)./g;
 # replace conjecture by negated_conjecture, run through patched dfg2tptp
 # and put to new tptp, parse it all to $cnf1
 
-my $pid = open2(*Reader, *Writer, "$FlotterOnTPTPHome/dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | $FlotterOnTPTPHome/tptp4X -f $Format -t $Transform -u $User -- " );
+$pid = open2(*Reader, *Writer, "$FlotterOnTPTPHome/dfg2tptp|sed -e 's/,conjecture,/,negated_conjecture,/g' | $FlotterOnTPTPHome/tptp4X -f $Format -t $Transform -u $User -- " );
 
 print Writer "$_\n";
 close Writer;
@@ -247,12 +252,27 @@ SWITCH: for($System)
 	    open(VIN,">$vamp_in") or die "Cannot open file $vamp_in for writing";
 	    print VIN $cnf2;
 	    close(VIN);
-	    $_ = `$FlotterOnTPTPHome/vampire --mode casc -t $Timelimit $vamp_in`;
-	    print $_;
-	    `rm $vamp_in`;
+        $pid = open(VOUT,"$FlotterOnTPTPHome/vampire --mode casc -t $Timelimit $vamp_in|") or die("Cannot start vampire\n");
+        while ($_ = <VOUT>) {
+	        print $_;
+        }
+        close(VOUT);
+        if (-e $vamp_in) {
+	        unlink($vamp_in);
+        }
 	    last SWITCH;
 	};
 	die "Unhandled system name: $System";
     }
 
+#------------------------------------------------------------------------------
+sub QUITHandler {
+    my ($Signal) = @_;
+
+    kill($Signal,$pid);
+    if (-e $vamp_in) {
+        unlink($vamp_in);
+    }
+}
+#------------------------------------------------------------------------------
 __END__
