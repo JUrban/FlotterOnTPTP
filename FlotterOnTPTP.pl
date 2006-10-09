@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Revision: 1.11 $
+# $Revision: 1.12 $
 
 =head1 NAME
 
@@ -253,6 +253,33 @@ SWITCH: for($System)
 	    print VIN $cnf2;
 	    close(VIN);
         $pid = open(VOUT,"$FlotterOnTPTPHome/vampire --mode casc -t $Timelimit $vamp_in|") or die("Cannot start vampire\n");
+        while ($_ = <VOUT>) {
+	        print $_;
+        }
+        close(VOUT);
+        if (-e $vamp_in) {
+	        unlink($vamp_in);
+        }
+	    last SWITCH;
+	};
+	if(/^faust$/)
+	{
+	    open2(*FReader1, *FWriter1, 
+		  "$FlotterOnTPTPHome/faust -- ");
+	    print FWriter1 $cnf2;
+	    close FWriter1;
+	    $_ = <FReader1>;
+	    print $_;
+	    last SWITCH;
+	};
+	if(/^equinox$/)
+	{
+	    ###TODO: learn how to run vampire through pipe
+	    $vamp_in = mktemp("___vamptmp___XXXXX");
+	    open(VIN,">$vamp_in") or die "Cannot open file $vamp_in for writing";
+	    print VIN $cnf2;
+	    close(VIN);
+        $pid = open(VOUT,"$FlotterOnTPTPHome/equinox --split --time $Timelimit $vamp_in|") or die("Cannot start equinox\n");
         while ($_ = <VOUT>) {
 	        print $_;
         }
